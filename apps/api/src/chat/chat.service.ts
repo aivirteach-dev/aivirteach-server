@@ -31,6 +31,10 @@ import {
   type DiagnoseRequestBody,
   type DiagnoseResponseBody,
 } from './agent-client';
+import {
+  projectDiagnosisDetails,
+  type DiagnosisDetails,
+} from './diagnosis-details';
 
 export type ChatMessage = {
   id: string;
@@ -39,6 +43,7 @@ export type ChatMessage = {
   role: 'student' | 'tutor';
   text: string;
   createdAt: string;
+  diagnosisDetails?: DiagnosisDetails;
 };
 
 export type ChatStreamEvent =
@@ -597,6 +602,9 @@ export class ChatService {
       role: row.role === ConversationRole.USER ? 'student' : 'tutor',
       text: row.content,
       createdAt: row.createdAt.toISOString(),
+      ...(row.role === ConversationRole.ASSISTANT && row.contextRef
+        ? { diagnosisDetails: projectDiagnosisDetails(row.contextRef) }
+        : {}),
     };
   }
 
