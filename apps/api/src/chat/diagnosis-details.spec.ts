@@ -97,6 +97,39 @@ describe('projectDiagnosisDetails', () => {
     );
   });
 
+  it('keeps complete suggestions within raw limits after redaction expands them', () => {
+    const title = `Check ::1 ${'x'.repeat(189)}`;
+    const detail = `Review ::1 ${'y'.repeat(1_988)}`;
+    const details = projectDiagnosisDetails({
+      suggested_actions: [
+        { title, detail },
+        {
+          title: `Check ::1 ${'x'.repeat(190)}`,
+          detail: `Review ::1 ${'y'.repeat(1_989)}`,
+        },
+        { title: `Check ::1 ${'x'.repeat(191)}`, detail: 'Review' },
+        { title: 'Check', detail: `Review ::1 ${'y'.repeat(1_990)}` },
+      ],
+    });
+
+    expect(details?.suggestions).toEqual([
+      {
+        title: `Check [address] ${'x'.repeat(189)}`,
+        detail: `Review [address] ${'y'.repeat(1_988)}`,
+      },
+      {
+        title: `Check [address] ${'x'.repeat(190)}`,
+        detail: `Review [address] ${'y'.repeat(1_989)}`,
+      },
+    ]);
+    expect(details?.suggestions[0].title).toHaveLength(205);
+    expect(details?.suggestions[0].detail).toHaveLength(2_005);
+    expect(details?.suggestions[1].title).toHaveLength(206);
+    expect(details?.suggestions[1].detail).toHaveLength(2_006);
+    expect(details?.suggestions[0].title).not.toContain('::1');
+    expect(details?.suggestions[0].detail).not.toContain('::1');
+  });
+
   it('bounds arrays and text length', () => {
     const details = projectDiagnosisDetails({
       tool_trace: Array.from({ length: 30 }, () => ({

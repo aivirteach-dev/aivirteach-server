@@ -5,7 +5,10 @@ const TOOL_STATUSES = ['ok', 'error', 'denied', 'cached'] as const;
 const MAX_TOOLS = 6;
 const MAX_EVIDENCE = 6;
 const MAX_SUGGESTIONS = 4;
-const MAX_TEXT = 2_000;
+const MAX_RAW_TITLE_LENGTH = 200;
+const MAX_RAW_DETAIL_LENGTH = 2_000;
+const MAX_PUBLIC_TITLE_LENGTH = 1_000;
+const MAX_PUBLIC_DETAIL_LENGTH = 10_000;
 
 export type DiagnosisDetails = {
   tools: Array<{
@@ -28,11 +31,16 @@ function record(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-function boundedText(value: unknown, maxLength = MAX_TEXT): string | undefined {
+function boundedText(
+  value: unknown,
+  maxRawLength: number,
+  maxPublicLength: number,
+): string | undefined {
   if (typeof value !== 'string') return undefined;
-  const text = value.trim().slice(0, maxLength);
-  if (!text) return undefined;
-  return redactPublicText(text);
+  const text = value.trim();
+  if (!text || text.length > maxRawLength) return undefined;
+  const publicText = redactPublicText(text);
+  return publicText.length <= maxPublicLength ? publicText : undefined;
 }
 
 function redactPublicText(value: string): string {
@@ -142,15 +150,16 @@ export function projectDiagnosisDetails(
   const suggestions = Array.isArray(response.suggested_actions)
     ? response.suggested_actions.slice(0, MAX_SUGGESTIONS).flatMap((entry) => {
         const item = record(entry);
-        const title = boundedText(item?.title, 200);
-        const detail = boundedText(item?.detail);
-        if (typeof item?.title === 'string' && item.title.trim().length > 200)
-          return [];
-        if (
-          typeof item?.detail === 'string' &&
-          item.detail.trim().length > MAX_TEXT
-        )
-          return [];
+        const title = boundedText(
+          item?.title,
+          MAX_RAW_TITLE_LENGTH,
+          MAX_PUBLIC_TITLE_LENGTH,
+        );
+        const detail = boundedText(
+          item?.detail,
+          MAX_RAW_DETAIL_LENGTH,
+          MAX_PUBLIC_DETAIL_LENGTH,
+        );
         return title && detail ? [{ title, detail }] : [];
       })
     : [];
