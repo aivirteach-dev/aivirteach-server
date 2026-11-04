@@ -158,6 +158,66 @@ describe('ChatService.getMessages', () => {
     ]);
   });
 
+  it('history 暴露允许展示的 diagnosis details，而不返回 contextRef 原始对象', async () => {
+    const { service, prisma } = await buildService();
+    prisma.enrollment.findUnique.mockResolvedValue(ENROLLMENT);
+    prisma.conversation.findMany.mockResolvedValue([
+      conversationRow({
+        id: 'tutor_details',
+        role: ConversationRole.ASSISTANT,
+        content: 'answer',
+        contextRef: {
+          request_id: 'private-request',
+          answer: 'answer',
+          diagnosis: { private: true },
+          tool_trace: [
+            {
+              tool: 'get_vm_status',
+              status: 'ok',
+              duration_ms: 8,
+              parameters: { secret: 'hidden' },
+            },
+          ],
+          evidence: [
+            {
+              id: 'obs-001',
+              tool: 'get_vm_status',
+              summary: 'VM status and reported IPv4 addresses were collected.',
+              captured_at: '2026-11-04T00:00:00Z',
+              facts: { private: 'hidden' },
+            },
+          ],
+          suggested_actions: [
+            { title: 'Check service', detail: 'Review service status.' },
+          ],
+        },
+      }),
+    ]);
+
+    const [message] = await service.getMessages('user_1', 'enr_1', 0);
+    expect(message).toEqual(
+      expect.objectContaining({
+        id: 'tutor_details',
+        diagnosisDetails: {
+          tools: [{ tool: 'get_vm_status', status: 'ok', durationMs: 8 }],
+          evidence: [
+            {
+              id: 'obs-001',
+              tool: 'get_vm_status',
+              summary: 'VM status and reported IPv4 addresses were collected.',
+              capturedAt: '2026-11-04T00:00:00.000Z',
+            },
+          ],
+          suggestions: [
+            { title: 'Check service', detail: 'Review service status.' },
+          ],
+        },
+      }),
+    );
+    expect(JSON.stringify(message)).not.toContain('private-request');
+    expect(JSON.stringify(message)).not.toContain('hidden');
+  });
+
   it('旧代 history 在 restart 后拒绝，且不查询对话', async () => {
     const { service, prisma } = await buildService();
     prisma.enrollment.findUnique.mockResolvedValue(ENROLLMENT);
